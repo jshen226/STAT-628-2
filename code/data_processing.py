@@ -156,3 +156,25 @@ for i in range(star_count2.shape[0]):
 star_count['x_square'] = x_square
 star_count = star_count.sort_index(by='x_square',ascending=False)
 star_count.to_csv('star_count.csv')
+
+categories = business[['business_id','state','latitude','longitude','categories']]
+categories = categories[categories['categories'].notnull()]
+dictionary = set()
+for sentence in categories['categories']:
+    temp = sentence.split(',')
+    for i in range(len(temp)):
+        dictionary.add(temp[i])
+
+len(dictionary)
+cat_dictionary = {}
+for word in dictionary:
+    cat_dictionary[word] = 0
+    for sentence in categories['categories']:
+        temp = sentence.split(',')
+        for i in range(len(temp)):
+            if word  == temp[i]:
+                cat_dictionary[word] += 1
+cat_dictionary = sorted(cat_dictionary.items(),key=lambda item:item[1],reverse=True)
+
+cat = pd.DataFrame(cat_dictionary)
+cat.to_csv("cat.csv")
