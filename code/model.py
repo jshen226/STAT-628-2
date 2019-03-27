@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import nltk
+import json
+import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.stem.porter import PorterStemmer
@@ -8,7 +10,16 @@ from nltk.stem.porter import PorterStemmer
 import re
 import nltk.sentiment
 
-review = pd.read_csv("American_traditional.csv",low_memory=False)
+ourfile = '/Users/dulize/Downloads/review_test.json'
+out = []
+with open(ourfile, 'r') as fh:
+    for line in fh:
+        d = json.loads(line)
+        out.append(d)
+
+review = pd.DataFrame(out)
+
+review.to_csv("train.csv",index=False)
 text = review['text']
 
 stops = stopwords.words('english')
@@ -42,7 +53,7 @@ pat_are = re.compile("(?<=[a-zA-Z])'re")
 pat_ve = re.compile("(?<=[a-zA-Z])'ve")
 pat_th = re.compile("(\d+)(th|st|nd|rd)")
 pat_comma = re.compile(",")
-
+pat_neg = re.compile("(\w+)_NEG")
 
 
 porter_stemmer = PorterStemmer()
@@ -83,96 +94,56 @@ for i in range(len(text1)):
     text2[i] = str.join(text1[i])
     print(i)
 
-count = {}
+train_set = pd.DataFrame(text2)
+train_set.to_csv('train_set.csv')
 
-for i in range(len(text1)):
-    sentence = text1[i]
-    j = 0
-    temp = set()
-    while j < len(sentence):
-        word = sentence[j]
-        if word not in count:
-            count[word] = 1
-        elif word not in temp:
-            count[word] += 1
-        temp.add(word)
-        j= j + 1
+text3 = pd.read_csv('train_set.csv',index_col=None)
+text3 = text3.iloc[:,1]
+text2 = list(text3)
+stars = review['stars']
+#3170346 is nan,delete
+print(np.argwhere(np.isnan(stars)))
+hhh=[]
+for i in range(len(text3)):
+    if pd.isnull(text3[i]):
+        hhh.append(i)
     print(i)
+#2733591,5083914
+text2 = text3.drop(hhh)
+stars = stars.drop(hhh)
 
-print("The length of dictionary is:",len(count.keys()))
-#The length of dictionary is: 211683
-count = sorted(count.items(),key=lambda item:item[1],reverse=True)
+map = dict((x,y) for x,y in zip(word,range(295)))
+from sklearn.feature_extraction.text import CountVectorizer
+vectorizer = CountVectorizer(vocabulary=map,binary=True)
+vectorizer.fit(text2)
+print(vectorizer.vocabulary_)
+vector = vectorizer.transform(text2)
+print(vector.toarray())
 
-word_dict = pd.DataFrame(count)
-word_dict = word_dict.iloc[:5000,:]
-word_dict.to_csv("word_dict.csv")
-
-count_value = np.array(list(count.values()))
-count_key = np.array(list(count.keys()))
-count_key = count_key[count_value.astype(int)>=4000]
-
-len(count_key)
-#1767
-
-
-count_new = {}
-for word in count_key:
-    count_new[word] = count[word]
-
-stars = review['stars'].astype(int)
-
-star_count = pd.DataFrame(columns=('WORD', '1STAR', '2STAR' ,'3STAR', '4STAR', '5STAR'))
-index = 0
-for word in count_new:
-    new_line = [word,0,0,0,0,0]
-    for i in range(len(text1)):
-        sentence1 = text1[i]
-        j = 0
-        c = 0
-        while j < len(sentence1):
-            word2 = sentence1[j]
-            if word == word2:
-                c += 1
-            j += 1
-        if c > 0:
-            new_line[stars[i]] += 1
-    star_count.loc[index] = new_line
-    index += 1
-    print(index)
-
-word_dist = star_count[['1STAR', '2STAR' ,'3STAR', '4STAR', '5STAR']]
-word_sum = word_dist.sum(axis=1).astype(int)
+import sklearn
+from sklearn.naive_bayes import MultinomialNB
+X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(vector, stars,test_size=0.2)
+clf = MultinomialNB()
+clf.fit(X_train, y_train)
+pre_NB = clf.predict(X_test)
+res = [pre_NB[i] - y_test.iloc[i] for i in range(y_test.shape[0])]
+print((sum(x ** 2 for x in res) / len(res)) ** 0.5)
 
 
-def count(text,word,stars):
-    star=[[],[],[],[],[]]
-    for i in range(len(text)):
-        j=0
-        review = text[i]
-        count = 0
-        while j < len(review):
-            word2 = review[j]
-            if word2 in ['not', 'never', 'no', 'hardly', 'seldom']:
-                if (j + 1) < len(review):
-                    word2 = review[j] + " " + review[j + 1]
-                    j = j + 1
-            if word == word2:
-                count += 1
-            j += 1
+from sklearn import svm
+clf = svm.SVC()
+clf.fit(vector, stars)
+pre_NB = clf.predict(vector)
+res = [pre_NB[i] - y_test.iloc[i] for i in range(y_test.shape[0])]
+print((sum(x ** 2 for x in res) / len(res)) ** 0.5)
 
-        star[stars[i]-1].append(count)
-    return star
+from sklearn.linear_model import LinearRegression
+clf = LinearRegression()
+from sklearn.linear_model import LogisticRegression
+clf = LogisticRegression()
 
-
-a=count(text1,"service",stars)
-len(a)
-
-
-import matplotlib.pyplot as plt
-
-star_count_info = pd.read_csv("star_count_info.csv")
-dat_plot = star_count_info[['info']]
-dat_plot.index = range(461)
-dat_plot.plot()
-plt.show()
-
+final = pd.DataFrame(columns=['ID','Expected'])
+final['ID']=range(1321274)
+final['ID']=final['ID']+1
+final['Expected']=pre_NB
+final.to_csv('submit.csv',index=False)

@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import nltk
+import json
+import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.stem.porter import PorterStemmer
@@ -8,9 +10,9 @@ from nltk.stem.porter import PorterStemmer
 import re
 import nltk.sentiment
 
+
 review = pd.read_csv("American_traditional.csv",low_memory=False)
 text = review['text']
-
 stops = stopwords.words('english')
 keep = ['he','she','it','they','their','few','most','more','all','any',
         'some','no','nor','not','only','than','very',"don't",'aren',
@@ -82,97 +84,38 @@ for i in range(len(text1)):
  #   text1[i] = [wordnet_lemmatizer.lemmatize(word,pos='v') for word in text1[i]]
     text2[i] = str.join(text1[i])
     print(i)
+pat_neg = re.compile("(\w+)_NEG")
+pos_tag = nltk.pos_tag(word)
+nouns = []
+for words, pos in pos_tag:
+    if (pos == 'NN' or pos == 'NNP' or pos == 'NNS' or pos == 'NNPS'):
+        nouns.append(words)
+for i in range(len(nouns)):
+    nouns[i] = pat_neg.sub('',nouns[i])
+pop = []
+for i in range(len(nouns)):
+    if nouns[i] == '':
+        pop.append(i)
+nouns = pd.Series(nouns)
+nouns = nouns.drop(pop)
+nouns = list(nouns)
 
-count = {}
-
-for i in range(len(text1)):
-    sentence = text1[i]
-    j = 0
-    temp = set()
-    while j < len(sentence):
-        word = sentence[j]
-        if word not in count:
-            count[word] = 1
-        elif word not in temp:
-            count[word] += 1
-        temp.add(word)
-        j= j + 1
-    print(i)
-
-print("The length of dictionary is:",len(count.keys()))
-#The length of dictionary is: 211683
-count = sorted(count.items(),key=lambda item:item[1],reverse=True)
-
-word_dict = pd.DataFrame(count)
-word_dict = word_dict.iloc[:5000,:]
-word_dict.to_csv("word_dict.csv")
-
-count_value = np.array(list(count.values()))
-count_key = np.array(list(count.keys()))
-count_key = count_key[count_value.astype(int)>=4000]
-
-len(count_key)
-#1767
-
-
-count_new = {}
-for word in count_key:
-    count_new[word] = count[word]
+map = dict((x,y) for x,y in zip(nouns,range(295)))
+from sklearn.feature_extraction.text import CountVectorizer
+vectorizer = CountVectorizer(vocabulary=map,binary=True)
+vectorizer.fit(text2)
+print(vectorizer.vocabulary_)
+vector = vectorizer.transform(text2)
+print(vector.toarray())
 
 stars = review['stars'].astype(int)
-
-star_count = pd.DataFrame(columns=('WORD', '1STAR', '2STAR' ,'3STAR', '4STAR', '5STAR'))
-index = 0
-for word in count_new:
-    new_line = [word,0,0,0,0,0]
-    for i in range(len(text1)):
-        sentence1 = text1[i]
-        j = 0
-        c = 0
-        while j < len(sentence1):
-            word2 = sentence1[j]
-            if word == word2:
-                c += 1
-            j += 1
-        if c > 0:
-            new_line[stars[i]] += 1
-    star_count.loc[index] = new_line
-    index += 1
-    print(index)
-
-word_dist = star_count[['1STAR', '2STAR' ,'3STAR', '4STAR', '5STAR']]
-word_sum = word_dist.sum(axis=1).astype(int)
-
-
-def count(text,word,stars):
-    star=[[],[],[],[],[]]
-    for i in range(len(text)):
-        j=0
-        review = text[i]
-        count = 0
-        while j < len(review):
-            word2 = review[j]
-            if word2 in ['not', 'never', 'no', 'hardly', 'seldom']:
-                if (j + 1) < len(review):
-                    word2 = review[j] + " " + review[j + 1]
-                    j = j + 1
-            if word == word2:
-                count += 1
-            j += 1
-
-        star[stars[i]-1].append(count)
-    return star
-
-
-a=count(text1,"service",stars)
-len(a)
-
-
-import matplotlib.pyplot as plt
-
-star_count_info = pd.read_csv("star_count_info.csv")
-dat_plot = star_count_info[['info']]
-dat_plot.index = range(461)
-dat_plot.plot()
-plt.show()
-
+from sklearn.linear_model import LinearRegression
+clf = LinearRegression()
+clf.fit(vector, stars)
+noun_final = pd.DataFrame(columns=['word','coeff'])
+noun_final['word'] = nouns
+noun_final['coeff'] = clf.coef_
+ascend = noun_final.sort_values(by='coeff',ascending=False)
+descend = noun_final.sort_values(by='coeff')
+ascend.to_csv("ascend.csv")
+descend.to_csv("descend.csv")
