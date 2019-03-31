@@ -5,6 +5,8 @@ library(data.table)
 b_sub_train=read.csv("business_subset_train.csv",header = T)
 restaurants=b_sub_train %>% filter(grepl("restaurants",ignore.case=T,categories))
 str(restaurants)
+res_id=restaurants$business_id
+write.csv(res_id,"res_id.csv")
 
 # 1 american(traditional)
 americantraditional_train=b_sub_train %>% filter(grepl("American \\(traditional\\)",ignore.case=T,categories))
