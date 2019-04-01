@@ -8,3 +8,8 @@ This repository contains work related to STAT 628, instructed by Prof. Hyunseung
 *code* folder contains the Python and R code we wrote.
 
 *summary* folder contains the Jupyter Notebook summarizing our final results.
+
+## Authors
+* **Lize Du** - (ldu43@wisc.edu)
+* **Linquan Ma** - (lma75@wisc.edu)
+* **Wenjia Xie** -　(wxie42@wisc.edu)
